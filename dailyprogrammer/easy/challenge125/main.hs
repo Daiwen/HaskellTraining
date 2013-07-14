@@ -23,7 +23,7 @@ analyze a = show $ evalState (process a)
 
 type ProcessState = (String, Analytics)
 
-data CharType = WS | LE | SY | UN
+data CharType = WS | LE | SY 
   
 whatIs :: Char -> CharType
 whatIs x 
