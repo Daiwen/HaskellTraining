@@ -11,9 +11,9 @@ import System.Random
 main :: IO()
 main = forever $ do
   dices <- getLine
-  s <- liftM unlines $ mapM ((\a -> case a of 
+  s <- liftM unlines $ mapM (\a -> case readNDM a of 
                                 Left err ->  return err :: IO String
                                 Right val -> liftM show $ evalRandIO $ ndmDices val) 
-                             . readNDM) $ words dices
+                            $ words dices
        
   putStr s
