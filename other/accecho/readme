@@ -1,0 +1,11 @@
+The aim of this challenge was to write a program that would store
+whate is given on the standard input and echo all of it when a new
+line is input.
+
+ex:
+> hello
+hello
+> how are you
+hello how are you
+> foo
+hello how are you foo
