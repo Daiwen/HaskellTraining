@@ -1,7 +1,7 @@
 module Main where
 import Control.Monad
 import Control.Monad.State
--- import SnakeGame
+import SnakeGame
 import HDCEngine
 
 
