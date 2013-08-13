@@ -14,7 +14,7 @@ main = do
   evalStateT loop igs
     where
       loop = do
-        ns <- liftIO nextGameState
+        ns <- liftIO getInputs
 --        when (ns /= "quit") $ do
         modify $ (updateGameState) ns        
         fs <- get
