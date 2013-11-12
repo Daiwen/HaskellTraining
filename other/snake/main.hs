@@ -16,7 +16,7 @@ main = do
       loop = do
         ns <- liftIO getInputs
 --        when (ns /= "quit") $ do
-        modify $ (updateGameState) ns        
+        modify $ updateGameState ns        
         fs <- get
         liftIO $ drawGameState fs
         loop    
