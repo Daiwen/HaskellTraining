@@ -126,12 +126,20 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
         snakeNfood2Str xs ys = snakeNfood2Str' xs ys gx ""
         
         snakeNfood2Str' _ _ 0 str = reverse str
+        snakeNfood2Str' [] [] gxidx str = 
+          snakeNfood2Str' [] [] (gxidx-1) (' ':str)
         snakeNfood2Str' (x:xs) (y:ys) gxidx str
           | x == gxidx && y == gxidx = snakeNfood2Str' xs ys (gxidx-1)
                                        ('S':str)
           | x == gxidx = snakeNfood2Str' xs (y:ys) (gxidx-1) ('S':str)
           | y == gxidx = snakeNfood2Str' (x:xs) ys (gxidx-1) ('F':str)
           | otherwise = snakeNfood2Str' (x:xs) (y:ys) (gxidx-1) (' ':str)
+        snakeNfood2Str' xs (y:ys) gxidx str
+          | y == gxidx = snakeNfood2Str' xs ys (gxidx-1) ('F':str)
+          | otherwise = snakeNfood2Str' xs (y:ys) (gxidx-1) (' ':str)
+        snakeNfood2Str' (x:xs) ys gxidx str
+          | x == gxidx = snakeNfood2Str' xs ys (gxidx-1) ('S':str)
+          | otherwise = snakeNfood2Str' (x:xs) ys (gxidx-1) (' ':str)
         
 
         foodLst ((x, y), _) z
@@ -168,17 +176,17 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
 parseSnake :: Parser SnakeGame
 parseSnake = do
   gx <- many1 digit
+  spaces
   gy <- many1 digit
   spaces
-  px <- many1 digit
-  py <- many1 digit
+  sx <- many1 digit
+  spaces
+  sy <- many1 digit
   spaces
   sze <- many1 digit
   spaces
-  sx <- many1 digit
-  sy <- many1 digit
-  spaces
   fx <- many1 digit
+  spaces
   fy <- many1 digit
   return SnakeGame {grid = (read gx, read gy),                      
                     snake = ((read sx, read sy), Head {direction = SnDown,

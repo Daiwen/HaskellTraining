@@ -14,9 +14,9 @@ main = do
   evalStateT loop igs
     where
       loop = do
+        fs <- get
+        liftIO $ drawGameState fs
         ns <- liftIO getInputs
 --        when (ns /= "quit") $ do
         modify $ flip updateGameState ns
-        fs <- get
-        liftIO $ drawGameState fs
         loop    
