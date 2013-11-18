@@ -2,7 +2,7 @@ module Main where
 import Control.Monad
 import Control.Monad.State
 import SnakeGame
-import HDCEngine
+
 
 
     
@@ -16,7 +16,7 @@ main = do
       loop = do
         ns <- liftIO getInputs
 --        when (ns /= "quit") $ do
-        modify $ updateGameState ns        
+        modify $ flip updateGameState ns
         fs <- get
         liftIO $ drawGameState fs
         loop    

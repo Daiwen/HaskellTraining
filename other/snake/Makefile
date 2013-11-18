@@ -1,4 +1,4 @@
-default: HDCEngine.hs main.hs
+default: main.hs
 	ghc --make -o snake main.hs
 
 clean:
