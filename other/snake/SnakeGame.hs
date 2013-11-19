@@ -43,35 +43,32 @@ updatePosition _ c Unknown = c
 data Snake = SnTail | Head {direction :: Direction,
                             size :: Int, 
                             sntail :: Snake}
-             
+
+
 updateSnake ::SnakeGame -> Snake -> SnakeInputs -> Snake
-updateSnake gs sn (SnakeInputs i)
-  | ps == pf = if direction sn == i
-               then Head {direction = direction sn,
-                          size = 1 + size sn,
-                          sntail = sntail sn}
-               else Head {direction = i,
-                          size = 1,
-                          sntail = sn}
-  | otherwise = if direction sn == i
-                then Head {direction = direction sn,
-                           size = 1 + size sn,
-                           sntail = sntail $ shortenTail sn}
-                else Head {direction = i,
-                           size = 1,
-                           sntail = shortenTail sn}
-  where (ps, _) = snake gs
-        (pf, _) = food gs
-        shortenTail s = case sntail s of
-          Head hsnk sze hsntail -> shortenTail hsntail
+updateSnake gs sn (SnakeInputs i) =
+  let (ps, _) = snake gs
+      (pf, _) = food gs
+      (nsze, nsntail) = 
+        case (direction sn == i, sntail sn, ps == pf) of
+          (True, SnTail, True) -> (1 + size sn, SnTail)   
+          (True, _, True) -> (1 + size sn, sntail sn)
+          (_, _, True) -> (1, sn)
+          (True, SnTail, False) -> (size sn, SnTail)   
+          (True, _, False) -> (1 + size sn, sntail $ shortenTail sn)
+          (_, _, False) -> (1, shortenTail sn)
+  in Head {direction = i,
+           size = nsze,
+           sntail = nsntail}
+  where shortenTail s = case sntail s of
+          Head hsnk sze hsntail -> Head hsnk sze $ shortenTail hsntail
           SnTail -> if size s > 1
-                  then Head {direction = direction s,
-                             size = size s - 1,
-                             sntail = SnTail}
-                  else SnTail
-
-
-
+                    then Head {direction = direction s,
+                               size = size s - 1,
+                               sntail = SnTail}
+                    else SnTail
+updateSnake gs sn Unknown = updateSnake gs sn $ SnakeInputs $ direction sn
+                         
                          
 data Food = Food
 
@@ -108,6 +105,7 @@ updateGameState s i = let (ps, sn) = snake s
     
 drawGameState :: SnakeGame -> IO ()    
 drawGameState gs = putStr $ gameStateStr gs
+
 
 
 gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
@@ -155,7 +153,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
           snakeLst' ((npx, npy), nsnk) idx nxs
           where nsnk = if size snk > 1
                        then Head {direction = direction snk,
-                                  size = 1 - size snk,
+                                  size = size snk - 1,
                                   sntail = sntail snk}
                        else sntail snk
                             
