@@ -2,6 +2,7 @@ module Main where
 import Control.Monad
 import Control.Monad.State
 import SnakeGame
+import System.IO
 
 
 
@@ -9,6 +10,7 @@ import SnakeGame
 main :: IO()
 main = do 
   --getting an initial state
+  hSetBuffering stdin NoBuffering
   igs <- initGameState
   
   evalStateT loop igs

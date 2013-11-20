@@ -125,7 +125,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
         
         snakeNfood2Str' _ _ 0 str = reverse str
         snakeNfood2Str' [] [] gxidx str = 
-          snakeNfood2Str' [] [] (gxidx-1) (' ':str)
+          snakeNfood2Str' [] [] 0 (replicate gxidx ' ' ++ str)
         snakeNfood2Str' (x:xs) (y:ys) gxidx str
           | x == gxidx && y == gxidx = snakeNfood2Str' xs ys (gxidx-1)
                                        ('S':str)
@@ -143,8 +143,6 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
         foodLst ((x, y), _) z
           | y == z = [x]
           | otherwise = []
-
-        
         
         snakeLst snk idx = snakeLst' snk idx [] 
         
@@ -162,8 +160,8 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                       else xs
                            
                 (npx, npy) = case direction snk of
-                  SnUp -> (px, py+1)
-                  SnDown -> (px, py-1)
+                  SnUp -> (px, (py+1) `mod` gy)
+                  SnDown -> (px, (py-1-gy) `mod` gy)
                   SnLeft -> (px+1, py)
                   SnRight -> (px-1, py)
 
