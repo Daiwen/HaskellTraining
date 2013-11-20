@@ -37,6 +37,7 @@ updatePosition s (a, b) (SnakeInputs SnLeft) = ((a-1) `mod` x, b)
                              where (x, _) = grid s
 updatePosition s (a, b) (SnakeInputs SnRight) = ((a+1) `mod` x, b)
                              where (x, _) = grid s
+--TODO modify to change the position in the last direction
 updatePosition _ c Unknown = c
 
 
@@ -50,18 +51,20 @@ updateSnake gs sn (SnakeInputs i) =
   let (ps, _) = snake gs
       (pf, _) = food gs
       (nsze, nsntail) = 
-        case (direction sn == i, sntail sn, ps == pf) of
-          (True, SnTail, True) -> (1 + size sn, SnTail)   
-          (True, _, True) -> (1 + size sn, sntail sn)
-          (_, _, True) -> (1, sn)
-          (True, SnTail, False) -> (size sn, SnTail)   
-          (True, _, False) -> (1 + size sn, sntail $ shortenTail sn)
-          (_, _, False) -> (1, shortenTail sn)
+        case (ps == pf, direction sn == i, sntail sn) of
+          (True, True, SnTail) -> (1 + size sn, SnTail)   
+          (True, True, _) -> (1 + size sn, sntail sn)
+          (True, False, _) -> (1, sn)
+          (False, True, SnTail) -> (size sn, SnTail)   
+          (False, False, SnTail) -> (1, Head (direction sn) (size sn -1) SnTail)
+          (False, True, _) -> (1 + size sn, shortenTail $ sntail sn)
+          (False, False, _) -> (1, shortenTail sn)
   in Head {direction = i,
            size = nsze,
            sntail = nsntail}
   where shortenTail s = case sntail s of
-          Head hsnk sze hsntail -> Head hsnk sze $ shortenTail hsntail
+          Head hsnk sze hsntail -> Head (direction s)
+                                   (size s) (shortenTail $ sntail s)
           SnTail -> if size s > 1
                     then Head {direction = direction s,
                                size = size s - 1,
@@ -109,23 +112,24 @@ drawGameState gs = putStr $ gameStateStr gs
 
 
 gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
-                  gameStateLine gs gy ++
+                  gameStateLine gs 0 ++
                   " " ++ replicate gx '_' ++ "\n"
   where (gx, gy) = grid gs
         
         --TODO terminal recursion or monad plus?
-        gameStateLine gs 0 = []
-        gameStateLine gs gyidx = "|" ++ gameStateLine' gs gyidx ++
-                              "|\n" ++ gameStateLine gs (gyidx - 1)
+        gameStateLine gs gyidx 
+          | gy == gyidx = []
+          | otherwise = "|" ++ gameStateLine' gs gyidx ++
+                        "|\n" ++ gameStateLine gs (gyidx + 1)
                               
         gameStateLine' gs gyidx = snakeNfood2Str (snakeLst (snake gs) gyidx)
                                   (foodLst (food gs) gyidx)
                                
-        snakeNfood2Str xs ys = snakeNfood2Str' xs ys gx ""
+        snakeNfood2Str xs ys = snakeNfood2Str' xs ys (gx-1) ""
         
-        snakeNfood2Str' _ _ 0 str = reverse str
+        snakeNfood2Str' _ _ (-1) str = str
         snakeNfood2Str' [] [] gxidx str = 
-          snakeNfood2Str' [] [] 0 (replicate gxidx ' ' ++ str)
+          snakeNfood2Str' [] [] (-1) (replicate (gxidx+1) ' ' ++ str)
         snakeNfood2Str' (x:xs) (y:ys) gxidx str
           | x == gxidx && y == gxidx = snakeNfood2Str' xs ys (gxidx-1)
                                        ('S':str)
@@ -146,7 +150,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
         
         snakeLst snk idx = snakeLst' snk idx [] 
         
-        snakeLst' (_, SnTail) _ xs = sort xs
+        snakeLst' (_, SnTail) _ xs = reverse $ sort xs
         snakeLst' ((px, py), snk) idx xs =
           snakeLst' ((npx, npy), nsnk) idx nxs
           where nsnk = if size snk > 1
@@ -161,9 +165,9 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                            
                 (npx, npy) = case direction snk of
                   SnUp -> (px, (py+1) `mod` gy)
-                  SnDown -> (px, (py-1-gy) `mod` gy)
-                  SnLeft -> (px+1, py)
-                  SnRight -> (px-1, py)
+                  SnDown -> (px, (py-1+gy) `mod` gy)
+                  SnLeft -> ((px+1+gx) `mod` gx, py)
+                  SnRight -> ((px-1) `mod` gx, py)
 
                                  
                            
