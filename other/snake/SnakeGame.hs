@@ -51,6 +51,7 @@ data Snake = SnTail | Head {direction :: Direction,
 
 
 updateSnake ::SnakeGame -> Snake -> SnakeInputs -> Snake
+updateSnake GSQuit a b = updateSnake GSQuit a b
 updateSnake gs sn (SnakeInputs i) =
   let (ps, _) = snake gs
       (pf, _) = food gs
@@ -77,6 +78,33 @@ updateSnake gs sn (SnakeInputs i) =
 updateSnake gs sn Unknown = updateSnake gs sn $ SnakeInputs $ direction sn
                          
                          
+isLostSnake :: Snake -> Bool
+isLostSnake snk = isLostSnake' nsnk vcpt hcpt
+  where nsnk = if size snk > 1
+               then Head (direction snk) (size snk - 1) (sntail snk)
+               else sntail snk
+        (vcpt, hcpt) = case direction snk of
+          SnRight -> (0, 1)
+          SnLeft -> (0, -1)
+          SnUp -> (1, 0)
+          SnDown -> (-1, 0)
+        isLostSnake' _ 0 0 = True
+        isLostSnake' SnTail _ _ = False
+        isLostSnake' (Head dir sze stail) vcpt hcpt =
+          isLostSnake' nsnk (vcpt+v) (hcpt+h) ||
+          isLostSnake' nsnk (0+v) (0+h)
+          where nsnk = if sze > 1
+                       then Head dir (sze-1) stail
+                       else stail
+                (v,h) = case dir of
+                  SnRight -> (0, 1)
+                  SnLeft -> (0, -1)
+                  SnUp -> (1, 0)
+                  SnDown -> (-1, 0)
+
+
+
+
 data Food = Food
 
 updateFood :: SnakeGame -> Food -> Food
@@ -84,11 +112,14 @@ updateFood s f = f
 -- TODO random position
 
 
-data SnakeGame = Err |SnakeGame {grid :: GridSize,
-                                 snake :: (Position, Snake),
-                                 food :: (Position, Food)}
+data SnakeGame = Err | GSQuit | SnakeGame {grid :: GridSize,
+                                           snake :: (Position, Snake),
+                                           food :: (Position, Food)}
 
-
+instance Eq SnakeGame where
+  Err == Err = True
+  GSQuit == GSQuit = True
+  _ == _ = False
 
   
 
@@ -101,16 +132,18 @@ initGameState = do
     Right val -> return val            
 
 updateGameState :: SnakeGame -> SnakeInputs -> SnakeGame
-updateGameState s i = let (ps, sn) = snake s
-                          (pf, f) = food s
-                      in SnakeGame {grid = grid s,
-                                    snake = (updatePosition s ps i,
-                                             updateSnake s sn i),
-                                    food = (pf, updateFood s f)}
-
-    
+updateGameState s i
+  | isLostSnake snk = GSQuit
+  | otherwise = let (ps, sn) = snake s
+                    (pf, f) = food s
+                in SnakeGame {grid = grid s,
+                              snake = (updatePosition s ps i,
+                                       updateSnake s sn i),
+                              food = (pf, updateFood s f)}
+  where (_, snk) = snake s
     
 drawGameState :: SnakeGame -> IO ()    
+drawGameState GSQuit = return ()
 drawGameState gs = putStr $ gameStateStr gs
 
 

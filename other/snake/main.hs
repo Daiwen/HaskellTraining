@@ -23,7 +23,7 @@ main = do
         liftIO $ drawGameState fs
         liftIO $ threadDelay 100000
         ns <- liftIO $ swapMVar iMVar Unknown
-        when (ns /= Quit) $ do
+        when (ns /= Quit && fs /= GSQuit) $ do
           modify $ flip updateGameState ns
           loop iMVar
         
