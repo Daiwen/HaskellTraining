@@ -6,15 +6,17 @@ import Text.Parsec.Char
 import Text.Parsec.Prim
 import Data.List
 import Text.ParserCombinators.Parsec
+import Control.Concurrent
 
 data Direction = SnUp | SnDown | SnLeft | SnRight deriving (Eq)
-data SnakeInputs = SnakeInputs Direction | Unknown
+data SnakeInputs = SnakeInputs Direction | Quit |Unknown deriving (Eq)
 
 
-getInputs :: IO SnakeInputs
-getInputs = do
+getInputs :: MVar SnakeInputs -> IO ()
+getInputs iMVar = do
   x <- getChar
-  return $ readInputs x
+  swapMVar iMVar $ readInputs x
+  getInputs iMVar
     
 readInputs :: Char -> SnakeInputs
 readInputs x  
@@ -22,6 +24,7 @@ readInputs x
   | x == 's' = SnakeInputs SnDown
   | x == 'q' = SnakeInputs SnLeft
   | x == 'd' = SnakeInputs SnRight
+  | x == '\ESC' = Quit
   | otherwise = Unknown
 
 
@@ -30,15 +33,16 @@ type Position = (Int, Int)
 
 updatePosition :: SnakeGame -> Position -> SnakeInputs -> Position
 updatePosition s (a, b) (SnakeInputs SnUp) = (a, (b-1) `mod` y)
-                             where (_, y) = grid s
+  where (_, y) = grid s
 updatePosition s (a, b) (SnakeInputs SnDown) = (a, (b+1) `mod` y)
-                             where (_, y) = grid s
+  where (_, y) = grid s
 updatePosition s (a, b) (SnakeInputs SnLeft) = ((a-1) `mod` x, b)
-                             where (x, _) = grid s
+  where (x, _) = grid s
 updatePosition s (a, b) (SnakeInputs SnRight) = ((a+1) `mod` x, b)
-                             where (x, _) = grid s
---TODO modify to change the position in the last direction
-updatePosition _ c Unknown = c
+  where (x, _) = grid s
+updatePosition s c Unknown = 
+  updatePosition s c $ SnakeInputs $ direction snk 
+  where (_, snk) = snake s
 
 
 data Snake = SnTail | Head {direction :: Direction,
