@@ -156,8 +156,8 @@ updateGameState s i
   where (_, snk) = snake s
         (gx, gy) = grid s
         (rpos, nseed) = runState (do 
-                                     x <- state $ randomR (0, gx)
-                                     y <- state $ randomR (0, gy)
+                                     x <- state $ randomR (0, gx-1)
+                                     y <- state $ randomR (0, gy-1)
                                      return (x,y)) 
                          $ seed s
     
