@@ -1,12 +1,14 @@
 module SnakeGame where
 
 import System.IO
+import System.Random
 import System.Environment
 import Text.Parsec.Char
 import Text.Parsec.Prim
 import Data.List
 import Text.ParserCombinators.Parsec
 import Control.Concurrent
+import Control.Monad.State
 
 data Direction = SnUp | SnDown | SnLeft | SnRight deriving (Eq)
 data SnakeInputs = SnakeInputs Direction | Quit |Unknown deriving (Eq)
@@ -31,17 +33,17 @@ readInputs x
 type GridSize = (Int, Int)
 type Position = (Int, Int)
 
-updatePosition :: SnakeGame -> Position -> SnakeInputs -> Position
-updatePosition s (a, b) (SnakeInputs SnUp) = (a, (b-1) `mod` y)
+updateSnakePosition :: SnakeGame -> Position -> SnakeInputs -> Position
+updateSnakePosition s (a, b) (SnakeInputs SnUp) = (a, (b-1) `mod` y)
   where (_, y) = grid s
-updatePosition s (a, b) (SnakeInputs SnDown) = (a, (b+1) `mod` y)
+updateSnakePosition s (a, b) (SnakeInputs SnDown) = (a, (b+1) `mod` y)
   where (_, y) = grid s
-updatePosition s (a, b) (SnakeInputs SnLeft) = ((a-1) `mod` x, b)
+updateSnakePosition s (a, b) (SnakeInputs SnLeft) = ((a-1) `mod` x, b)
   where (x, _) = grid s
-updatePosition s (a, b) (SnakeInputs SnRight) = ((a+1) `mod` x, b)
+updateSnakePosition s (a, b) (SnakeInputs SnRight) = ((a+1) `mod` x, b)
   where (x, _) = grid s
-updatePosition s c Unknown = 
-  updatePosition s c $ SnakeInputs $ direction snk 
+updateSnakePosition s c Unknown = 
+  updateSnakePosition s c $ SnakeInputs $ direction snk 
   where (_, snk) = snake s
 
 
@@ -50,7 +52,12 @@ data Snake = SnTail | Head {direction :: Direction,
                             sntail :: Snake}
 
 
-updateSnake ::SnakeGame -> Snake -> SnakeInputs -> Snake
+updatePlayer :: SnakeGame -> (Position, Snake) -> SnakeInputs ->
+                (Position, Snake)
+updatePlayer gs (pos, snk) si = (updateSnakePosition gs pos si,
+                                 updateSnake gs snk si)
+
+updateSnake :: SnakeGame -> Snake -> SnakeInputs -> Snake
 updateSnake GSQuit a b = updateSnake GSQuit a b
 updateSnake gs sn (SnakeInputs i) =
   let (ps, _) = snake gs
@@ -107,14 +114,21 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 
 data Food = Food
 
-updateFood :: SnakeGame -> Food -> Food
-updateFood s f = f
--- TODO random position
+updateFood :: SnakeGame -> (Position, Food) -> Position -> (Position, Food)
+updateFood gs (pos, f) rpos = (updateFoodPosition gs pos rpos, f)
+
+
+updateFoodPosition :: SnakeGame -> Position -> Position -> Position
+updateFoodPosition gs pos rpos = if pos == p 
+                                 then rpos
+                                 else pos
+  where (p, _) = snake gs
 
 
 data SnakeGame = Err | GSQuit | SnakeGame {grid :: GridSize,
                                            snake :: (Position, Snake),
-                                           food :: (Position, Food)}
+                                           food :: (Position, Food),
+                                           seed :: StdGen}
 
 instance Eq SnakeGame where
   Err == Err = True
@@ -134,13 +148,18 @@ initGameState = do
 updateGameState :: SnakeGame -> SnakeInputs -> SnakeGame
 updateGameState s i
   | isLostSnake snk = GSQuit
-  | otherwise = let (ps, sn) = snake s
-                    (pf, f) = food s
-                in SnakeGame {grid = grid s,
-                              snake = (updatePosition s ps i,
-                                       updateSnake s sn i),
-                              food = (pf, updateFood s f)}
+  | otherwise = SnakeGame {grid = grid s,
+                           snake = updatePlayer s (snake s) i,
+                           food = updateFood s (food s) rpos,
+                           seed = nseed}
+                
   where (_, snk) = snake s
+        (gx, gy) = grid s
+        (rpos, nseed) = runState (do 
+                                     x <- state $ randomR (0, gx)
+                                     y <- state $ randomR (0, gy)
+                                     return (x,y)) 
+                         $ seed s
     
 drawGameState :: SnakeGame -> IO ()    
 drawGameState GSQuit = return ()
@@ -229,7 +248,8 @@ parseSnake = do
                     snake = ((read sx, read sy), Head {direction = SnDown,
                                                        size = read sze,
                                                        sntail = SnTail}),
-                    food = ((read fx, read fy), Food)}
+                    food = ((read fx, read fy), Food),
+                    seed = mkStdGen 5}
                         
                              
     

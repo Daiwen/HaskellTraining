@@ -4,7 +4,7 @@ import Control.Monad.State
 import SnakeGame
 import System.IO
 import Control.Concurrent
-
+import System.Random
 
     
 main :: IO()
@@ -16,7 +16,13 @@ main = do
   iMVar <- newMVar $ SnakeInputs SnDown  
   forkIO (getInputs iMVar)
 
-  evalStateT (loop iMVar) igs
+  rgen <- newStdGen
+  let rgs = SnakeGame (grid igs)
+            (snake igs)
+            (food igs)
+            rgen
+
+  evalStateT (loop iMVar) rgs
     where
       loop iMVar = do
         fs <- get
