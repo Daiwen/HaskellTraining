@@ -3,15 +3,15 @@ module SnakeGame where
 import System.IO
 import System.Random
 import System.Environment
+import Data.List
+import Control.Concurrent
+import Control.Monad.State as S
+import Text.ParserCombinators.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Prim
-import Data.List
-import Text.ParserCombinators.Parsec
-import Control.Concurrent
-import Control.Monad.State
 
 data Direction = SnUp | SnDown | SnLeft | SnRight deriving (Eq)
-data SnakeInputs = SnakeInputs Direction | Quit |Unknown deriving (Eq)
+data SnakeInputs = SnakeInputs Direction | Quit | Unknown deriving (Eq)
 
 
 getInputs :: MVar SnakeInputs -> IO ()
@@ -33,47 +33,63 @@ readInputs x
 type GridSize = (Int, Int)
 type Position = (Int, Int)
 
-updateSnakePosition :: SnakeGame -> Position -> SnakeInputs -> Position
-updateSnakePosition s (a, b) (SnakeInputs SnUp) = (a, (b-1) `mod` y)
-  where (_, y) = grid s
-updateSnakePosition s (a, b) (SnakeInputs SnDown) = (a, (b+1) `mod` y)
-  where (_, y) = grid s
-updateSnakePosition s (a, b) (SnakeInputs SnLeft) = ((a-1) `mod` x, b)
-  where (x, _) = grid s
-updateSnakePosition s (a, b) (SnakeInputs SnRight) = ((a+1) `mod` x, b)
-  where (x, _) = grid s
-updateSnakePosition s c Unknown = 
-  updateSnakePosition s c $ SnakeInputs $ direction snk 
-  where (_, snk) = snake s
-
-
 data Snake = SnTail | Head {direction :: Direction,
                             size :: Int, 
                             sntail :: Snake}
 
 
-updatePlayer :: SnakeGame -> (Position, Snake) -> SnakeInputs ->
-                (Position, Snake)
-updatePlayer gs (pos, snk) si = (updateSnakePosition gs pos si,
-                                 updateSnake gs snk si)
+updatePlayer :: SnakeInputs -> S.State SnakeGame (Position, Snake)
+updatePlayer si = 
+  do
+    npos <- updateSnakePosition si
+    nsnk <- updateSnake si
+    return (npos, nsnk)
 
-updateSnake :: SnakeGame -> Snake -> SnakeInputs -> Snake
-updateSnake GSQuit a b = updateSnake GSQuit a b
-updateSnake gs sn (SnakeInputs i) =
-  let (ps, _) = snake gs
-      (pf, _) = food gs
-      (nsze, nsntail) = 
-        case (ps == pf, direction sn == i, sntail sn) of
-          (True, True, SnTail) -> (1 + size sn, SnTail)   
-          (True, True, _) -> (1 + size sn, sntail sn)
-          (True, False, _) -> (1, sn)
-          (False, True, SnTail) -> (size sn, SnTail)   
-          (False, False, SnTail) -> (1, Head (direction sn) (size sn -1) SnTail)
-          (False, True, _) -> (1 + size sn, shortenTail $ sntail sn)
-          (False, False, _) -> (1, shortenTail sn)
-  in Head {direction = i,
-           size = nsze,
-           sntail = nsntail}
+
+updateSnakePosition ::  SnakeInputs -> S.State SnakeGame Position
+updateSnakePosition si =
+  do 
+    gs <- get     
+    let (spos, snk) = snake gs
+        sndir = if Unknown == si
+                then (SnakeInputs $ direction snk)
+                else si                              
+    return $ updateSnakePosition' (grid gs) spos sndir
+  where 
+    updateSnakePosition' (gx, gy) (a, b) (SnakeInputs SnUp) =
+      (a, (b-1) `mod` gy)
+    updateSnakePosition' (gx, gy) (a, b) (SnakeInputs SnDown) = 
+      (a, (b+1) `mod` gy)
+    updateSnakePosition' (gx, gy) (a, b) (SnakeInputs SnLeft) =
+      ((a-1) `mod` gx, b)
+    updateSnakePosition' (gx, gy) (a, b) (SnakeInputs SnRight) =
+      ((a+1) `mod` gx, b)
+
+
+
+updateSnake ::  SnakeInputs -> S.State SnakeGame Snake
+updateSnake Unknown = 
+  do
+    gs <- get
+    let (_, snk) = snake gs
+    updateSnake $ SnakeInputs $ direction snk
+updateSnake (SnakeInputs i) =
+  do
+    gs <- get
+    let (ps, sn) = snake gs
+        (pf, _) = food gs
+        (nsze, nsntail) = 
+          case (ps == pf, direction sn == i, sntail sn) of
+            (True, True, SnTail) -> (1 + size sn, SnTail)   
+            (True, True, _) -> (1 + size sn, sntail sn)
+            (True, False, _) -> (1, sn)
+            (False, True, SnTail) -> (size sn, SnTail)   
+            (False, False, SnTail) -> (1, Head (direction sn) (size sn -1) SnTail)
+            (False, True, _) -> (1 + size sn, shortenTail $ sntail sn)
+            (False, False, _) -> (1, shortenTail sn)
+    return $ Head {direction = i,
+                   size = nsze,
+                   sntail = nsntail}
   where shortenTail s = case sntail s of
           Head hsnk sze hsntail -> Head (direction s)
                                    (size s) (shortenTail $ sntail s)
@@ -82,7 +98,7 @@ updateSnake gs sn (SnakeInputs i) =
                                size = size s - 1,
                                sntail = SnTail}
                     else SnTail
-updateSnake gs sn Unknown = updateSnake gs sn $ SnakeInputs $ direction sn
+
                          
                          
 isLostSnake :: Snake -> Bool
@@ -114,15 +130,32 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 
 data Food = Food
 
-updateFood :: SnakeGame -> (Position, Food) -> Position -> (Position, Food)
-updateFood gs (pos, f) rpos = (updateFoodPosition gs pos rpos, f)
+updateFood :: S.State SnakeGame (Position, Food)
+updateFood = 
+  do 
+    gs <- get 
+    let (_, f) = food gs
+    fpos <- updateFoodPosition
+    return (fpos, f)
 
 
-updateFoodPosition :: SnakeGame -> Position -> Position -> Position
-updateFoodPosition gs pos rpos = if pos == p 
-                                 then rpos
-                                 else pos
-  where (p, _) = snake gs
+updateFoodPosition :: S.State SnakeGame Position
+updateFoodPosition = 
+  do 
+    gs <- get
+    let (fpos, _) = food gs
+        (spos, _) = snake gs        
+        (gx, gy) = grid gs
+        (rpos, nseed) = runState (do x <- state $ randomR (0, gx-1)
+                                     y <- state $ randomR (0, gy-1)
+                                     return (x,y)) (seed gs)
+    put $ SnakeGame (gx, gy) (snake gs) (food gs) nseed
+    
+    if fpos == spos
+      then return rpos
+      else return fpos    
+
+
 
 
 data SnakeGame = Err | GSQuit | SnakeGame {grid :: GridSize,
@@ -136,7 +169,6 @@ instance Eq SnakeGame where
   _ == _ = False
 
   
-
 initGameState :: IO SnakeGame
 initGameState = do 
   handle <- openFile "./init-data.snk" ReadMode  
@@ -145,21 +177,19 @@ initGameState = do
     Left err -> return Err
     Right val -> return val            
 
-updateGameState :: SnakeGame -> SnakeInputs -> SnakeGame
-updateGameState s i
-  | isLostSnake snk = GSQuit
-  | otherwise = SnakeGame {grid = grid s,
-                           snake = updatePlayer s (snake s) i,
-                           food = updateFood s (food s) rpos,
-                           seed = nseed}
-                
-  where (_, snk) = snake s
-        (gx, gy) = grid s
-        (rpos, nseed) = runState (do 
-                                     x <- state $ randomR (0, gx-1)
-                                     y <- state $ randomR (0, gy-1)
-                                     return (x,y)) 
-                         $ seed s
+
+updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
+updateGameState i = 
+  do
+    nsnk <- updatePlayer i
+    nfood <- updateFood
+    gs <- get
+    case gs of
+      GSQuit -> put gs
+      Err -> put gs
+      SnakeGame grd _ _ oseed -> put $ SnakeGame grd nsnk nfood oseed      
+    return ()
+
     
 drawGameState :: SnakeGame -> IO ()    
 drawGameState GSQuit = return ()
@@ -229,6 +259,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                            
                          
 
+
 parseSnake :: Parser SnakeGame
 parseSnake = do
   gx <- many1 digit
@@ -250,7 +281,3 @@ parseSnake = do
                                                        sntail = SnTail}),
                     food = ((read fx, read fy), Food),
                     seed = mkStdGen 5}
-                        
-                             
-    
-  

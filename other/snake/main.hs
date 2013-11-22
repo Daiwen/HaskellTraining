@@ -27,10 +27,12 @@ main = do
       loop iMVar = do
         fs <- get
         liftIO $ drawGameState fs
-        liftIO $ threadDelay 100000
+        
+        liftIO $ threadDelay 100000        
         ns <- liftIO $ swapMVar iMVar Unknown
+        
         when (ns /= Quit && fs /= GSQuit) $ do
-          modify $ flip updateGameState ns
+          updateGameState ns
           loop iMVar
         
 
