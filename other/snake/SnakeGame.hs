@@ -172,9 +172,12 @@ initGameState :: IO SnakeGame
 initGameState = do 
   handle <- openFile "./init-data.snk" ReadMode  
   s <- hGetContents  handle
+  rgen <- newStdGen
   case parse parseSnake "snk" s of
     Left err -> return Err
-    Right val -> return val            
+    Right val -> return $ SnakeGame (grid val)
+                 (snake val) (food val) rgen
+
 
 
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()

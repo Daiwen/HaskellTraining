@@ -16,13 +16,7 @@ main = do
   iMVar <- newMVar $ SnakeInputs SnDown  
   forkIO (getInputs iMVar)
 
-  rgen <- newStdGen
-  let rgs = SnakeGame (grid igs)
-            (snake igs)
-            (food igs)
-            rgen
-
-  evalStateT (loop iMVar) rgs
+  evalStateT (loop iMVar) igs
     where
       loop iMVar = do
         fs <- get
