@@ -14,11 +14,11 @@ data Direction = SnUp | SnDown | SnLeft | SnRight deriving (Eq)
 data SnakeInputs = SnakeInputs Direction | Quit | Unknown deriving (Eq)
 
 
-getInputs :: MVar SnakeInputs -> IO ()
-getInputs iMVar = do
+getInputsThread :: MVar SnakeInputs -> IO ()
+getInputsThread iMVar = do
   x <- getChar
   swapMVar iMVar $ readInputs x
-  getInputs iMVar
+  getInputsThread iMVar
     
 readInputs :: Char -> SnakeInputs
 readInputs x  
@@ -150,7 +150,7 @@ updateFoodPosition =
         (rpos, nseed) = runState (do x <- state $ randomR (0, gx-1)
                                      y <- state $ randomR (0, gy-1)
                                      return (x,y)) (seed gs)
-    put $ SnakeGame (gx, gy) (snake gs) (food gs) nseed
+    put $ SnakeGame (gx, gy) (snake gs) (food gs) nseed (gsMVar gs)
     
     return $ if fpos == spos then rpos else fpos    
 
@@ -160,7 +160,8 @@ updateFoodPosition =
 data SnakeGame = Err | GSQuit | SnakeGame {grid :: GridSize,
                                            snake :: (Position, Snake),
                                            food :: (Position, Food),
-                                           seed :: StdGen}
+                                           seed :: StdGen,
+                                           gsMVar :: MVar SnakeInputs}
 
 instance Eq SnakeGame where
   Err == Err = True
@@ -172,13 +173,23 @@ initGameState :: IO SnakeGame
 initGameState = do 
   handle <- openFile "./init-data.snk" ReadMode  
   s <- hGetContents  handle
+  
+  iMVar <- newMVar $ SnakeInputs SnDown  
+  forkIO (getInputsThread iMVar)
+  
   rgen <- newStdGen
   case parse parseSnake "snk" s of
     Left err -> return Err
-    Right val -> return $ SnakeGame (grid val)
-                 (snake val) (food val) rgen
+    Right (grd, snk, fd) -> return $ SnakeGame grd
+                 snk fd rgen iMVar
 
 
+getInputs :: (MonadState SnakeGame m, MonadIO m) => m SnakeInputs
+getInputs = 
+  do
+    gs <- get
+    let iMVar = gsMVar gs
+    liftIO $ swapMVar iMVar Unknown
 
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
 updateGameState i = 
@@ -189,7 +200,9 @@ updateGameState i =
     if isLostSnake snk
     then put GSQuit
     else case gs of      
-         SnakeGame grd _ _ oseed -> put $ SnakeGame grd (snkpos, snk) nfood oseed 
+         SnakeGame grd _ _ oseed oMVar -> put $
+                                          SnakeGame grd (snkpos, snk)
+                                          nfood oseed oMVar
          _ -> put gs
 
     
@@ -262,7 +275,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                          
 
 
-parseSnake :: Parser SnakeGame
+parseSnake :: Parser (GridSize, (Position, Snake), (Position, Food))
 parseSnake = do
   gx <- many1 digit
   spaces
@@ -277,9 +290,8 @@ parseSnake = do
   fx <- many1 digit
   spaces
   fy <- many1 digit
-  return SnakeGame {grid = (read gx, read gy),                      
-                    snake = ((read sx, read sy), Head {direction = SnDown,
-                                                       size = read sze,
-                                                       sntail = SnTail}),
-                    food = ((read fx, read fy), Food),
-                    seed = mkStdGen 5}
+  return ((read gx, read gy),                      
+          ((read sx, read sy), Head {direction = SnDown,
+                                     size = read sze,
+                                     sntail = SnTail}),
+          ((read fx, read fy), Food))

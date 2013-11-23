@@ -12,22 +12,19 @@ main = do
   --getting an initial state
   hSetBuffering stdin NoBuffering
   igs <- initGameState
-  
-  iMVar <- newMVar $ SnakeInputs SnDown  
-  forkIO (getInputs iMVar)
 
-  evalStateT (loop iMVar) igs
+  evalStateT loop igs
     where
-      loop iMVar = do
+      loop = do
         fs <- get
         liftIO $ drawGameState fs
         
         liftIO $ threadDelay 100000        
-        ns <- liftIO $ swapMVar iMVar Unknown
+        ns <- getInputs 
         
         when (ns /= Quit && fs /= GSQuit) $ do
           updateGameState ns
-          loop iMVar
+          loop
         
 
           
