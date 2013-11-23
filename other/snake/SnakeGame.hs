@@ -178,16 +178,16 @@ initGameState = do
 
 
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
---updateGameState :: SnakeInputs -> S.State SnakeGame ()
 updateGameState i = 
   do
-    nsnk <- updatePlayer i
+    (snkpos, snk) <- updatePlayer i
     nfood <- updateFood
     gs <- get
-    case gs of      
-      SnakeGame grd _ _ oseed -> put $ SnakeGame grd nsnk nfood oseed      
-      _ -> put gs
-
+    if isLostSnake snk
+    then put GSQuit
+    else case gs of      
+         SnakeGame grd _ _ oseed -> put $ SnakeGame grd (snkpos, snk) nfood oseed 
+         _ -> put gs
 
     
 drawGameState :: SnakeGame -> IO ()    

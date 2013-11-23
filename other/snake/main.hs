@@ -24,7 +24,6 @@ main = do
 
   evalStateT (loop iMVar) rgs
     where
-      loop :: MVar SnakeInputs -> StateT SnakeGame IO ()
       loop iMVar = do
         fs <- get
         liftIO $ drawGameState fs
