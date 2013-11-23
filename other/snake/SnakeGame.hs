@@ -67,7 +67,6 @@ updateSnakePosition si =
       ((a+1) `mod` gx, b)
 
 
-
 updateSnake :: MonadState SnakeGame m => SnakeInputs -> m Snake
 updateSnake Unknown = 
   do
@@ -99,7 +98,6 @@ updateSnake (SnakeInputs i) =
                                size = size s - 1,
                                sntail = SnTail}
                     else SnTail
-
                          
                          
 isLostSnake :: Snake -> Bool
@@ -125,8 +123,6 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
                   SnLeft -> (0, -1)
                   SnUp -> (1, 0)
                   SnDown -> (-1, 0)
-
-
 
 
 data Food = Food
@@ -188,8 +184,13 @@ getInputs :: (MonadState SnakeGame m, MonadIO m) => m SnakeInputs
 getInputs = 
   do
     gs <- get
-    let iMVar = gsMVar gs
-    liftIO $ swapMVar iMVar Unknown
+    case gs of      
+         SnakeGame grd _ _ oseed oMVar -> 
+           do
+             let iMVar = gsMVar gs
+             liftIO $ swapMVar iMVar Unknown
+         _ -> return Quit
+
 
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
 updateGameState i = 
@@ -206,11 +207,14 @@ updateGameState i =
          _ -> put gs
 
     
-drawGameState :: SnakeGame -> IO ()    
-drawGameState GSQuit = return ()
-drawGameState gs = putStr $ gameStateStr gs
-
-
+drawGameState :: (MonadState SnakeGame m, MonadIO m) => m ()
+drawGameState =
+  do 
+    gs <- get
+    case gs of      
+      SnakeGame grd _ _ oseed oMVar -> liftIO $ putStr $ gameStateStr gs
+      _ -> return ()
+    liftIO $ threadDelay 100000        
 
 gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                   gameStateLine gs 0 ++
@@ -269,11 +273,7 @@ gameStateStr gs = " " ++ replicate gx '_' ++ "\n" ++
                   SnDown -> (px, (py-1+gy) `mod` gy)
                   SnLeft -> ((px+1+gx) `mod` gx, py)
                   SnRight -> ((px-1) `mod` gx, py)
-
-                                 
-                           
-                         
-
+                                                                            
 
 parseSnake :: Parser (GridSize, (Position, Snake), (Position, Food))
 parseSnake = do

@@ -17,12 +17,11 @@ main = do
     where
       loop = do
         fs <- get
-        liftIO $ drawGameState fs
+        drawGameState
         
-        liftIO $ threadDelay 100000        
         ns <- getInputs 
         
-        when (ns /= Quit && fs /= GSQuit) $ do
+        when (ns /= Quit) $ do
           updateGameState ns
           loop
         
