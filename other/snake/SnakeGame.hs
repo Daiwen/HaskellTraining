@@ -38,7 +38,8 @@ data Snake = SnTail | Head {direction :: Direction,
                             sntail :: Snake}
 
 
-updatePlayer :: SnakeInputs -> S.State SnakeGame (Position, Snake)
+updatePlayer :: MonadState SnakeGame m => SnakeInputs -> 
+                m (Position, Snake)
 updatePlayer si = 
   do
     npos <- updateSnakePosition si
@@ -46,13 +47,13 @@ updatePlayer si =
     return (npos, nsnk)
 
 
-updateSnakePosition ::  SnakeInputs -> S.State SnakeGame Position
+updateSnakePosition :: MonadState SnakeGame m => SnakeInputs -> m Position
 updateSnakePosition si =
   do 
     gs <- get     
     let (spos, snk) = snake gs
         sndir = if Unknown == si
-                then (SnakeInputs $ direction snk)
+                then SnakeInputs $ direction snk
                 else si                              
     return $ updateSnakePosition' (grid gs) spos sndir
   where 
@@ -67,7 +68,7 @@ updateSnakePosition si =
 
 
 
-updateSnake ::  SnakeInputs -> S.State SnakeGame Snake
+updateSnake :: MonadState SnakeGame m => SnakeInputs -> m Snake
 updateSnake Unknown = 
   do
     gs <- get
@@ -87,9 +88,9 @@ updateSnake (SnakeInputs i) =
             (False, False, SnTail) -> (1, Head (direction sn) (size sn -1) SnTail)
             (False, True, _) -> (1 + size sn, shortenTail $ sntail sn)
             (False, False, _) -> (1, shortenTail sn)
-    return $ Head {direction = i,
-                   size = nsze,
-                   sntail = nsntail}
+    return Head {direction = i,
+                 size = nsze,
+                 sntail = nsntail}
   where shortenTail s = case sntail s of
           Head hsnk sze hsntail -> Head (direction s)
                                    (size s) (shortenTail $ sntail s)
@@ -130,7 +131,7 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 
 data Food = Food
 
-updateFood :: S.State SnakeGame (Position, Food)
+updateFood :: MonadState SnakeGame m => m (Position, Food)
 updateFood = 
   do 
     gs <- get 
@@ -139,7 +140,7 @@ updateFood =
     return (fpos, f)
 
 
-updateFoodPosition :: S.State SnakeGame Position
+updateFoodPosition :: MonadState SnakeGame m => m Position
 updateFoodPosition = 
   do 
     gs <- get
@@ -151,9 +152,7 @@ updateFoodPosition =
                                      return (x,y)) (seed gs)
     put $ SnakeGame (gx, gy) (snake gs) (food gs) nseed
     
-    if fpos == spos
-      then return rpos
-      else return fpos    
+    return $ if fpos == spos then rpos else fpos    
 
 
 
@@ -179,16 +178,16 @@ initGameState = do
 
 
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
+--updateGameState :: SnakeInputs -> S.State SnakeGame ()
 updateGameState i = 
   do
     nsnk <- updatePlayer i
     nfood <- updateFood
     gs <- get
-    case gs of
-      GSQuit -> put gs
-      Err -> put gs
+    case gs of      
       SnakeGame grd _ _ oseed -> put $ SnakeGame grd nsnk nfood oseed      
-    return ()
+      _ -> put gs
+
 
     
 drawGameState :: SnakeGame -> IO ()    
