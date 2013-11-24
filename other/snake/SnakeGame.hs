@@ -76,6 +76,7 @@ updateSnakePosition si =
         (SnakeInputs SnRight) -> ((a+1) `mod` gx,  b            )
 
 
+
 --Update the snake representation
 updateSnake :: MonadState SnakeGame m => SnakeInputs -> m Snake
 updateSnake Unknown = 
@@ -150,6 +151,7 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 
 
 
+
 -- |Represents the food element in the game
 data Food = Food
 
@@ -211,8 +213,13 @@ getInputs :: (MonadState SnakeGame m, MonadIO m) => m SnakeInputs
 getInputs = 
   do
     gs <- get
-    let iMVar = gsMVar gs
-    liftIO $ swapMVar iMVar Unknown
+    case gs of      
+         SnakeGame grd _ _ oseed oMVar -> 
+           do
+             let iMVar = gsMVar gs
+             liftIO $ swapMVar iMVar Unknown
+         _ -> return Quit
+
 
 -- |This function updates the game state according the given inputs
 updateGameState :: MonadState SnakeGame m => SnakeInputs -> m ()
@@ -230,12 +237,20 @@ updateGameState i =
          _ -> put gs
 
 
--- |This function draws the game state    
-drawGameState :: SnakeGame -> IO ()    
-drawGameState GSQuit = return ()
-drawGameState gs = putStr $ gameStateStr gs
 
 
+
+
+
+-- |This function draws the game state        
+drawGameState :: (MonadState SnakeGame m, MonadIO m) => m ()
+drawGameState =
+  do 
+    gs <- get
+    case gs of      
+      SnakeGame grd _ _ oseed oMVar -> liftIO $ putStr $ gameStateStr gs
+      _ -> return ()
+    liftIO $ threadDelay 100000        
 
 --Builds a string to represent the gameState in a terminal    
 gameStateStr gs = printf " %s\n%s %s\n"
@@ -303,7 +318,7 @@ gameStateStr gs = printf " %s\n%s %s\n"
           SnRight -> ((px-1)    `mod` gx, py                )
                                                 
 
---Parses the
+--Parses the config file and return data to initialise the game state
 parseSnake :: Parser (GridSize, (Position, Snake), (Position, Food))
 parseSnake = do
   gx <- many1 digit
