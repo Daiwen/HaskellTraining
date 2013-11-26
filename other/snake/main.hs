@@ -2,9 +2,11 @@ module Main where
 import Control.Monad
 import Control.Monad.State
 import SnakeGame
+import HDCEngine
 import System.IO
 import Control.Concurrent
 import System.Random
+
 
     
 main :: IO()
@@ -16,15 +18,15 @@ main = do
   evalStateT loop igs
     where
       loop = do
-        fs <- get
         drawGameState
         
         ns <- getInputs 
         
-        when (ns /= Quit) $ do
+        when ((\x -> case x of 
+                  Quit -> False
+                  _    -> True ) ns) $ do
           updateGameState ns
           loop
         
 
           
-        
