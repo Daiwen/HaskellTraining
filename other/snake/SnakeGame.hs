@@ -43,7 +43,7 @@ data Snake = SnTail | Head { direction :: SnakeInputs
                            }
 
 --Update the player position and state according to the inputs
-updatePlayer :: MonadState SnakeGame m => GameInputs SnakeInputs -> 
+updatePlayer :: MonadState (GameState SnakeGame SnakeInputs) m => GameInputs SnakeInputs -> 
                 m (Position, Snake)
 updatePlayer si = 
   do
@@ -53,12 +53,13 @@ updatePlayer si =
 
 
 --Update the snake position
-updateSnakePosition :: MonadState SnakeGame m => 
+updateSnakePosition :: MonadState (GameState SnakeGame SnakeInputs) m => 
                        GameInputs SnakeInputs -> m Position
 updateSnakePosition si =
   do 
-    gs <- get     
-    let (spos, snk) = snake gs
+    ggs <- get     
+    let gs = gstate ggs
+        (spos, snk) = snake gs
         sndir       = 
             case si of 
               Unknown -> SInputs $ direction snk               
@@ -76,16 +77,18 @@ updateSnakePosition si =
 
 
 --Update the snake representation
-updateSnake :: MonadState SnakeGame m => GameInputs SnakeInputs -> m Snake
+updateSnake :: MonadState (GameState SnakeGame SnakeInputs) m => GameInputs SnakeInputs -> m Snake
 updateSnake Unknown = 
   do
-    gs <- get
-    let (_, snk) = snake gs
+    ggs <- get
+    let gs = gstate ggs
+        (_, snk) = snake gs
     updateSnake $ SInputs $ direction snk
 updateSnake (SInputs i) =
   do
-    gs <- get
-    let (ps, sn)        = snake gs
+    ggs <- get
+    let gs = gstate ggs
+        (ps, sn)        = snake gs
         (pf, _ )        = food  gs
         (nsze, nsntail) = 
           case (ps == pf, direction sn == i, sntail sn) of
@@ -152,46 +155,44 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 data Food = Food
 
 -- Updates the foog position and representation
-updateFood :: MonadState SnakeGame m => m (Position, Food)
+updateFood :: MonadState (GameState SnakeGame SnakeInputs) m => m (Position, Food)
 updateFood = 
   do 
     gs <- get 
-    let (_, f) = food gs
+    let (_, f) = food $ gstate gs
     fpos <- updateFoodPosition
     return (fpos, f)
 
 -- Updates food position depending on the player position
-updateFoodPosition :: MonadState SnakeGame m => m Position
+updateFoodPosition :: MonadState (GameState SnakeGame SnakeInputs) m => m Position
 updateFoodPosition = 
   do 
-    gs <- get
-    let (fpos,  _) = food gs
+    ggs <- get
+    let gs = gstate ggs 
+        (fpos,  _) = food gs
         (spos,  _) = snake gs        
         (gx  , gy)  = grid gs
         (rpos, nseed) = runState (do x <- state $ randomR (0, gx-1)
                                      y <- state $ randomR (0, gy-1)
                                      return (x,y)) (seed gs)
-    put $ SnakeGame (gx, gy) (snake gs) (food gs) nseed (gsMVar gs)
+    put $ SState (SnakeGame (gx, gy) (snake gs) (food gs) nseed) 
+                 (gsMVar ggs)
     
     return $ if fpos == spos then rpos else fpos    
 
 
 
 -- |Represents the state of the snake game
-data SnakeGame = Err | GSQuit | SnakeGame {grid :: GridSize,
-                                           snake :: (Position, Snake),
-                                           food :: (Position, Food),
-                                           seed :: StdGen,
-                                           gsMVar :: MVar (GameInputs SnakeInputs)}
+data SnakeGame =  SnakeGame { grid :: GridSize
+                            , snake :: (Position, Snake)
+                            , food :: (Position, Food)
+                            , seed :: StdGen}
 
-instance Eq SnakeGame where
-  Err == Err = True
-  GSQuit == GSQuit = True
-  _ == _ = False
+
 
 -- |This function reads from the config file to initialise 
 -- the game state.
-initGameState :: IO SnakeGame
+initGameState :: IO (GameState SnakeGame SnakeInputs)
 initGameState = do 
   handle <- openFile "./init-data.snk" ReadMode  
   s <- hGetContents  handle
@@ -202,24 +203,13 @@ initGameState = do
   rgen <- newStdGen
   case parse parseSnake "snk" s of
     Left err -> return Err
-    Right (grd, snk, fd) -> return $ SnakeGame grd snk fd rgen iMVar
+    Right (grd, snk, fd) -> return $ SState (SnakeGame grd snk fd rgen) iMVar
 
--- |This function retrieves the inputs
-getInputs :: (MonadState SnakeGame m, MonadIO m) => m (GameInputs SnakeInputs)
-getInputs = 
-  do
-    gs <- get
-    case gs of      
-         SnakeGame grd _ _ oseed oMVar -> 
-           do
-             let iMVar = gsMVar gs
-             liftIO $ swapMVar iMVar Unknown
-         _                             -> 
-           return Quit
 
 
 -- |This function updates the game state according the given inputs
-updateGameState :: MonadState SnakeGame m => GameInputs SnakeInputs -> m ()
+updateGameState :: MonadState (GameState SnakeGame SnakeInputs) m => 
+                   GameInputs SnakeInputs -> m ()
 updateGameState i = 
   do
     (snkpos, snk) <- updatePlayer i
@@ -228,28 +218,27 @@ updateGameState i =
     if isLostSnake snk
     then put GSQuit
     else case gs of      
-         SnakeGame grd _ _ oseed oMVar -> put $
-                                          SnakeGame grd (snkpos, snk)
-                                          nfood oseed oMVar
+         SState (SnakeGame grd _ _ oseed) oMVar -> put $
+                                          SState (SnakeGame grd (snkpos, snk)
+                                          nfood oseed) oMVar
          _ -> put gs
 
 
 
-
-
-
-
 -- |This function draws the game state        
-drawGameState :: (MonadState SnakeGame m, MonadIO m) => m ()
+drawGameState :: (MonadState (GameState SnakeGame SnakeInputs) m,
+                  MonadIO m) => m ()
 drawGameState =
   do 
     gs <- get
     case gs of      
-      SnakeGame grd _ _ oseed oMVar -> liftIO $ putStr $ gameStateStr gs
-      _ -> return ()
+      SState (SnakeGame grd _ _ oseed) oMVar -> 
+        liftIO $ putStr $ gameStateStr $ gstate gs
+      _                                      -> 
+        return ()
     liftIO $ threadDelay 100000        
 
---Builds a string to represent the gameState in a terminal    
+--Builds a string to represent the game state in a terminal    
 gameStateStr gs = printf " %s\n%s %s\n"
                          (replicate gx '_')
                          (gameStateLine gs 0)
