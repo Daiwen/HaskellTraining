@@ -43,13 +43,13 @@ data Snake = SnTail | Head { direction :: SnakeInputs
                            }
 
 --Update the player position and state according to the inputs
-updatePlayer :: MonadState (GameState SnakeGame SnakeInputs) m => GameInputs SnakeInputs -> 
-                m (Position, Snake)
+updatePlayer :: MonadState (GameState SnakeGame SnakeInputs) m =>
+                GameInputs SnakeInputs -> m (Position, Snake)
 updatePlayer si = 
   do
     npos <- updateSnakePosition si
     nsnk <- updateSnake         si
-    return (npos, nsnk)
+    return (npos, nsnk) 
 
 
 --Update the snake position
@@ -77,7 +77,8 @@ updateSnakePosition si =
 
 
 --Update the snake representation
-updateSnake :: MonadState (GameState SnakeGame SnakeInputs) m => GameInputs SnakeInputs -> m Snake
+updateSnake :: MonadState (GameState SnakeGame SnakeInputs) m => 
+               GameInputs SnakeInputs -> m Snake
 updateSnake Unknown = 
   do
     ggs <- get
@@ -155,7 +156,8 @@ isLostSnake snk = isLostSnake' nsnk vcpt hcpt
 data Food = Food
 
 -- Updates the foog position and representation
-updateFood :: MonadState (GameState SnakeGame SnakeInputs) m => m (Position, Food)
+updateFood :: MonadState (GameState SnakeGame SnakeInputs) m => 
+              m (Position, Food)
 updateFood = 
   do 
     gs <- get 
@@ -164,7 +166,8 @@ updateFood =
     return (fpos, f)
 
 -- Updates food position depending on the player position
-updateFoodPosition :: MonadState (GameState SnakeGame SnakeInputs) m => m Position
+updateFoodPosition :: MonadState (GameState SnakeGame SnakeInputs) m => 
+                      m Position
 updateFoodPosition = 
   do 
     ggs <- get
@@ -231,78 +234,65 @@ drawGameState :: (MonadState (GameState SnakeGame SnakeInputs) m,
 drawGameState =
   do 
     gs <- get
+    let (gx, gy) = grid $ gstate gs
     case gs of      
       SState (SnakeGame grd _ _ oseed) oMVar -> 
-        liftIO $ putStr $ gameStateStr $ gstate gs
+        liftIO $ printASCII gx ' ' $ gameStateFormat (gx, gy) $ gstate gs
       _                                      -> 
         return ()
     liftIO $ threadDelay 100000        
+  where      
+    gameStateFormat grd gs = zipWith mergeGameStateList 
+                             (foodList  grd $ food  gs)
+                             (snakeList grd $ snake gs)
+                                
+    mergeGameStateList :: [(Int, Char)] -> [(Int, Char)] -> [(Int, Char)]
+    mergeGameStateList = foldr mergeGameStateList'
 
---Builds a string to represent the game state in a terminal    
-gameStateStr gs = printf " %s\n%s %s\n"
-                         (replicate gx '_')
-                         (gameStateLine gs 0)
-                         (replicate gx '_')
-  where 
-    (gx, gy) = grid gs
-               
-    --Builds the string line after line
-    --TODO terminal recursion or monad plus?
-    gameStateLine :: SnakeGame -> Int -> String
-    gameStateLine gs gyidx 
-      | gy == gyidx = []
-      | otherwise = printf "|%s|\n%s" 
-                    (gameStateLine' gs gyidx)
-                    (gameStateLine gs (gyidx + 1))
-                    
-    gameStateLine' gs gyidx = snakeNfood2Str (snakeList (snake gs) gyidx)
-                                             (foodList  (food gs)  gyidx)
+    mergeGameStateList' :: (Int, Char) -> [(Int, Char)] -> [(Int, Char)]
+    mergeGameStateList' (x, ch) xs 
+      | x `elem` map fst xs = xs
+      | otherwise           = insertBy compareASCIICell (x, ch) xs
 
-    --Builds the string from the list of snake and food cells on the line
-    snakeNfood2Str xs ys = snakeNfood2Str' xs ys (gx-1) ""
-                                                                     
-    snakeNfood2Str' _ _ (-1) str = str
-    snakeNfood2Str' [] [] gxidx str = 
-      snakeNfood2Str' [] [] (-1) (replicate (gxidx+1) ' ' ++ str)
-    snakeNfood2Str' (x:xs) (y:ys) gxidx str
-      | x == gxidx && 
-        y == gxidx     = snakeNfood2Str'    xs     ys  (gxidx-1) ('S':str)
-      | x == gxidx     = snakeNfood2Str'    xs  (y:ys) (gxidx-1) ('S':str)
-      | y == gxidx     = snakeNfood2Str' (x:xs)    ys  (gxidx-1) ('F':str)
-      | otherwise      = snakeNfood2Str' (x:xs) (y:ys) (gxidx-1) (' ':str)
-    snakeNfood2Str' xs (y:ys) gxidx str
-      | y == gxidx     = snakeNfood2Str'    xs     ys  (gxidx-1) ('F':str)
-      | otherwise      = snakeNfood2Str'    xs  (y:ys) (gxidx-1) (' ':str)
-    snakeNfood2Str' (x:xs) ys gxidx str
-      | x == gxidx     = snakeNfood2Str'    xs     ys  (gxidx-1) ('S':str)
-      | otherwise      = snakeNfood2Str' (x:xs)    ys  (gxidx-1) (' ':str)
-                    
-    --Generates the food list from the food field of the game state
-    foodList ((x, y), _) z
-      | y == z    = [x]
-      | otherwise = []
-                    
-    --Generates the snake list from the snake field of the game state        
-    snakeList snk idx = snakeList' snk idx [] 
+    --Generates the food list from the gamestate food field 
+    foodList (_, gy) f = foodList' f $ replicate gy []
+        
+
+    foodList' ((x, y), _) xs = nxs
+      where        
+        (z:zs) = drop (y-1) xs
+        nxs    = take (y-1) xs ++ (((x, 'F'):z):zs)
+
+    --Generates the snake list from the gamestate snake field
+    snakeList (gx, gy) snk = snakeList' (gx, gy) snk $ replicate gy []
                         
-    snakeList' (_, SnTail) _ xs = reverse $ sort xs
-    snakeList' ((px, py), snk) idx xs = snakeList' ((npx, npy), nsnk) idx nxs
+    snakeList' _ (_, SnTail) xs = map (sortBy compareASCIICell) xs
+    snakeList' (gx, gy) ((px, py), snk) xs = snakeList' (gx, gy) 
+                                             ((npx, npy), nsnk) 
+                                             nxs
       where 
         nsnk | size snk <= 1 = sntail snk
              | size snk >  1 =  Head { direction = direction snk
                                      , size = size snk - 1
                                      , sntail = sntail snk
                                      }
-                        
-        nxs | idx == py = px:xs
-            | otherwise = xs
-                                   
+                                    
+        (y:ys) = drop (py-1) xs
+        nxs    = take (py-1) xs ++ (((px, 'S'):y):ys)
+                 
         (npx, npy) = case direction snk of
           SnUp    -> (px                , (py+1)    `mod` gy)
           SnDown  -> (px                , (py-1+gy) `mod` gy)
           SnLeft  -> ((px+1+gx) `mod` gx, py                )
           SnRight -> ((px-1)    `mod` gx, py                )
+
+    compareASCIICell (idx1, _) (idx2, _) 
+      | idx1 > idx2 = LT
+      | idx1 == idx2 = EQ
+      | otherwise   = GT
                                                 
+
+
 
 --Parses the config file and return data to initialise the game state
 parseSnake :: Parser (GridSize, (Position, Snake), (Position, Food))

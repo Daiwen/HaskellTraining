@@ -36,3 +36,19 @@ getInputs =
              liftIO $ swapMVar iMVar Unknown
          _                             -> 
            return Quit
+           
+           
+printASCII :: Int -> Char -> [[(Int, Char)]] -> IO()
+printASCII gx defaultChar xs =
+  putStr $ unlines $ [(' ':replicate gx '_')] ++  
+                     (map (printASCII' gx defaultChar gx "") xs) ++
+                     [(' ':replicate gx '_')]
+                    
+  where printASCII' _ _ 0 xs _ = "|" ++ xs ++ "|"
+        printASCII' _ dChar idx ys [] =
+         "|" ++ replicate idx dChar ++ ys ++ "|"
+        printASCII' gx dChar idx ys ((cidx, ch):xs)
+          | idx == cidx = 
+            printASCII' gx dChar (idx-1) (ch:ys) xs
+          | otherwise   = 
+            printASCII' gx dChar (idx-1) (dChar:ys) ((cidx, ch):xs)
