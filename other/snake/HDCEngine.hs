@@ -37,7 +37,16 @@ getInputs =
          _                             -> 
            return Quit
            
-           
+
+-- |'printASCII' applied to a number of columns a default character
+-- and data structure representing the non default cells in the
+-- grid. It prints a ASCII art representation of the data structure.
+-- > printASCII gx defaultChar xs 
+-- 
+-- The number of line in the representation is equal to the length of
+-- xs, each element in the list is a list of tuple whose first
+-- attribute is ordered in decreasing order. This attribute represent
+-- the inde, the other the character to print.         
 printASCII :: Int -> Char -> [[(Int, Char)]] -> IO()
 printASCII gx defaultChar xs =
   putStr $ unlines $ [(' ':replicate gx '_')] ++  

@@ -242,10 +242,13 @@ drawGameState =
         return ()
     liftIO $ threadDelay 100000        
   where      
+    --Build the datastructure expected by 'printASCII'
     gameStateFormat grd gs = zipWith mergeGameStateList 
                              (foodList  grd $ food  gs)
                              (snakeList grd $ snake gs)
                                 
+    --Auxillary function handling the merging of two lists, in
+    --particular handle the case of super imposed elements.
     mergeGameStateList :: [(Int, Char)] -> [(Int, Char)] -> [(Int, Char)]
     mergeGameStateList = foldr mergeGameStateList'
 
@@ -257,7 +260,6 @@ drawGameState =
     --Generates the food list from the gamestate food field 
     foodList (_, gy) f = foodList' f $ replicate gy []
         
-
     foodList' ((x, y), _) xs = nxs
       where        
         (z:zs) = drop (y-1) xs
@@ -286,6 +288,7 @@ drawGameState =
           SnLeft  -> ((px+1+gx) `mod` gx, py                )
           SnRight -> ((px-1)    `mod` gx, py                )
 
+    --Auxillary function needed to generate a descending sorted list
     compareASCIICell (idx1, _) (idx2, _) 
       | idx1 > idx2 = LT
       | idx1 == idx2 = EQ
